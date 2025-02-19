@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Puter.js AI Chat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .chat-container {
+            width: 90%;
+            max-width: 480px;
+            background-color: #fff;
+            border-radius: 20px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .chat-header {
+            background-color: #0085f5;
+            color: #fff;
+            padding: 20px;
+            text-align: center;
+            font-size: 1.2em;
+            font-weight: bold;
+            position: relative;
+        }
+
+        .sign-in-button {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #fff;
+            color: #0085f5;
+            border: none;
+            padding: 8px 24px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+
+        .sign-in-button:hover {
+            background-color: #e0e0e0;
+        }
+
+        .chat-body {
+            padding: 20px;
+            height: 70vh;
+            overflow-y: auto;
+        }
+
+        .message-bubble.user {
+            background-color: #0085f520;
+            padding: 12px;
+            border-radius: 12px;
+            max-width: 70%;
+            margin-bottom: 1rem;
+            position: relative;
+            word-wrap: break-word;
+        }
+
+        .message-bubble.ai {
+            background-color: #0085f50e;
+            padding: 12px;
+            border-radius: 12px;
+            max-width: 70%;
+            margin-bottom: 1rem;
+            position: relative;
+            word-wrap: break-word;
+            align-self: flex-start;
+        }
+
+        .message-bubble strong {
+            display: block;
+            font-size: 1.1em;
+        }
+
+        .copy-button {
+            position: absolute;
+            top: 0;
+            right: 0;
+            margin: 10px;
+            padding: 6px 10px;
+            border-radius: 50%;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .copy-button:hover {
+            background-color: #e0e0e0;
+        }
+
+        .chat-input {
+            padding: 20px;
+            width: 100%;
+            display: flex;
+            gap: 10px;
+            box-shadow: inset 0 -4px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        input[type="text"] {
+            flex-grow: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            box-shadow: 0 0 3px rgba(0, 133, 245, 0.5);
+        }
+
+        .send-button {
+            background-color: #0085f5;
+            color: #fff;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .send-button:disabled {
+            background-color: #ddd;
+            cursor: not-allowed;
+        }
+
+        .send-button:hover {
+            background-color: #0077d9;
+        }
+
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .loading-spinner {
+            border: 4px solid #ddd;
+            border-top-color: #0085f5;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .chat-container {
+                max-width: 90%;
+            }
+
+            .chat-header h1 {
+                font-size: 1.1em;
+            }
+
+            .chat-input {
+                padding: 10px;
+            }
+
+            .chat-input input[type="text"], .send-button {
+                padding: 8px;
+                font-size: 0.9em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header" id="loading-overlay">
+            <div class="loading-overlay">
+                <div class="loading-spinner"></div>
+            </div>
+            <h1>AI Chat</h1>
+            <button class="sign-in-button" onclick="signIn()">Sign In</button>
+        </div>
+        <div class="chat-body" id="chat-body">
+            <!-- Messages will be added here -->
+        </div>
+        <div class="chat-input">
+            <input type="text" id="user-input" placeholder="Type your message...">
+            <button class="send-button" onclick="sendMessage()" id="send-button" disabled>Send</button>
+        </div>
+    </div>
+
+    <!-- Depot JS -->
+    <script src="https://js.puter.com/v2/"></script>
+    <script>
+        const chatBody = document.getElementById('chat-body');
+        const sendButton = document.getElementById('send-button');
+        const userInput = document.getElementById('user-input');
+        const loadingOverlay = document.querySelector('.loading-overlay');
+        const signInButton = document.querySelector('.sign-in-button');
+
+        let conversation = [];
+        const KV_KEY = 'chat_history';
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await init();
+        });
+
+        async function init() {
+            if (!puter.auth.isSignedIn()) {
+                signInButton.style.display = 'block';
+                sendButton.disabled = true;
+            } else {
+                signInButton.style.display = 'none';
+                sendButton.disabled = false;
+                // Load conversation history
+                const savedHistory = await puter.kv.get(KV_KEY);
+                if (savedHistory) {
+                    conversation = JSON.parse(savedHistory);
+                    renderMessages();
+                }
+            }
+        }
+
+        async function signIn() {
+            try {
+                await puter.auth.signIn();
+                signInButton.style.display = 'none';
+                sendButton.disabled = false;
+                await init();
+            } catch (error) {
+                console.error('Sign-in failed:', error);
+                alert('Authentication failed. Please try again.');
+            }
+        }
+
+        async function saveConversation() {
+            await puter.kv.set(KV_KEY, JSON.stringify(conversation));
+        }
+
+        function renderMessages() {
+            chatBody.innerHTML = '';
+            conversation.forEach((message, idx) => {
+                const messageDiv = document.createElement('div');
+                if (message.role === 'user') {
+                    messageDiv.className = 'message-bubble user';
+                    messageDiv.style.alignSelf = 'flex-end';
+                    messageDiv.style.backgroundColor = '#0085f520';
+                } else {
+                    messageDiv.className = 'message-bubble ai';
+                    messageDiv.style.alignSelf = 'flex-start';
+                    messageDiv.style.backgroundColor = '#0085f50e';
+                }
+
+                const formattedText = message.content
+                    .split('\n')
+                    .map((line) => line.trim())
+                    .join('<br>');
+
+                messageDiv.innerHTML = `<strong>${message.role === 'user' ? 'You' : 'AI'}:</strong><br>${formattedText}`;
+
+                const copyButton = document.createElement('button');
+                copyButton.className = 'copy-button';
+                copyButton.textContent = '📋';
+                copyButton.addEventListener('click', () => {
+                    navigator.clipboard.writeText(message.content).then(
+                        () => {
+                            alert('Copied to clipboard!');
+                        },
+                        (error) => {
+                            console.error('Copy operation failed:', error);
+                        }
+                    );
+                });
+
+                messageDiv.appendChild(copyButton);
+
+                chatBody.appendChild(messageDiv);
+
+                // Ensure latest messages are visible
+                chatBody.scrollTop = chatBody.scrollHeight;
+            });
+        }
+
+        async function sendMessage() {
+            if (!puter.auth.isSignedIn()) return;
+
+            const userMessage = userInput.value.trim();
+
+            if (!userMessage) return;
+
+            // Add user message to conversation
+            conversation.push({ role: 'user', content: userMessage });
+            saveConversation();
+            renderMessages();
+            userInput.value = '';
+            sendButton.disabled = true;
+
+            // Start loading indicator
+            loadingOverlay.style.display = 'flex';
+
+            try {
+                // Get AI response
+                const aiResponse = await puter.ai.chat(userMessage, { model: 'claude-3-5-sonnet' });
+
+                // Add AI response to conversation
+                conversation.push({ role: 'ai', content: aiResponse.message.content });
+                await saveConversation();
+
+                // Render the updated conversation
+                renderMessages();
+            } catch (error) {
+                console.error('AI error:', error);
+                alert('AI encountered an error. Please try again later.');
+            } finally {
+                // Stop loading indicator
+                loadingOverlay.style.display = 'none';
+                sendButton.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
